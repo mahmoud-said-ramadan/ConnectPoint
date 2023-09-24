@@ -46,9 +46,17 @@ const userSchema = new Schema({
         type: Boolean,
         default: false,
     },
+    friends: [
+        {
+            _id: false, // Exclude the _id field from the array objects
+            user: { type: Types.ObjectId, ref: 'User', required: true },
+            place: { type: String, default: 'main', enum: ['main', 'archive'] }
+        }
+    ],
     image: Object,
     DOB: String,
     customId: String,
+    socketId: String,
 }, {
     timestamps: true
 })

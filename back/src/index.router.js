@@ -1,6 +1,7 @@
 import connectDB from '../DB/connection.js'
 import authRouter from './modules/auth/auth.router.js'
 import userRouter from './modules/user/user.router.js'
+import chatRouter from './modules/chat/chat.router.js'
 import { globalErrorHandling } from './utilis/errorHandling.js'
 import cors from 'cors'
 
@@ -35,6 +36,7 @@ const initApp = (app, express) => {
     })
     app.use(`/auth`, authRouter)
     app.use(`/user`, userRouter)
+    app.use(`/chat`, chatRouter)
     app.all('*', (req, res, next) => {
         res.status(404).send("In-valid Routing Plz check url  or  method")
     })

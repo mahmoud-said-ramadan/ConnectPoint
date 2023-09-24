@@ -61,7 +61,8 @@ router.route('/:id')
     )
 
 
-
+router.patch('/addFriend/:id', auth(endPoint.addFriend), userController.addFriend)
+router.get('/getFriends', auth(endPoint.addFriend), userController.getFriends)
 
 
 export default router;

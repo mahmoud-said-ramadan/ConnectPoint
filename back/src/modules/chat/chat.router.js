@@ -9,7 +9,13 @@ router.route('/')
         auth(Object.values(roles)),
         chatController.sendMessage
     )
+
+router.route('/:to')
     .get(
         auth(Object.values(roles)),
         chatController.getChat
     );
+
+
+export default router;
+

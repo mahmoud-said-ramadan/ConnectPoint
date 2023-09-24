@@ -17,7 +17,7 @@ export const getUserData = asyncHandler(
     async (req, res, next) => {
         const { _id } = req.user;
         let user = await userModel.findById(_id)
-            .select('-password -confirmEmail');
+            .select('userName image status');
         if (!user) {
             return next(new Error("In-Valid User!", { cause: 401 }));
         }
@@ -50,7 +50,7 @@ export const changePassword = asyncHandler(
         const match = compare({ plaintext: oldPassword, hashValue: password });
         if (match) {
             const hashedPassword = doHashing(newPassword);
-            await userModel.findByIdAndUpdate({ _id }, { password: hashedPassword, changedAt: Date.now()});
+            await userModel.findByIdAndUpdate({ _id }, { password: hashedPassword, changedAt: Date.now() });
             return res.status(202).json({
                 message: "Done!",
                 status: { cause: 202 }
@@ -142,6 +142,73 @@ export const logOutUser = asyncHandler(
     }
 )
 
-export const getUser = ()=>{
+// export const addFriend = asyncHandler(async (req, res, next) => {
+//     const { id } = req.params;
+//     const checkUser = await userModel.findById(id);
+//     if (!checkUser) {
+//         return next(new Error("In-Valid User!", { cause: 404 }));
+//     }
+//     await userModel.findByIdAndUpdate(req.user._id, { $addToSet: { friends: id } })
+//     res.status(202).json({ message: 'Done!' })
+// })
+
+// export const addFriend = asyncHandler(async (req, res, next) => {
+//     const { id } = req.params;
+
+//     // Find the friend user
+//     const friendUser = await userModel.findById(id);
+//     if (!friendUser) {
+//         return next(new Error("Invalid User!", { cause: 404 }));
+//     }
+
+//     const currentUser = req.user;
+
+//     // Update the current user's friends array
+//     await userModel.findByIdAndUpdate(
+//         currentUser._id,
+//         { $addToSet: { friends: { user: friendUser._id } } }
+//     );
+
+//     // Update the friend user's friends array
+//     await userModel.findByIdAndUpdate(
+//         friendUser._id,
+//         { $addToSet: { friends: { user: currentUser._id } } }
+//     );
+//     res.status(202).json({ message: 'Done!' });
+// });
+
+export const addFriend = asyncHandler(async (req, res, next) => {
+    const { id } = req.params;
+
+    // Find the friend user
+    const friendUser = await userModel.findById(id);
+    if (!friendUser) {
+        return next(new Error("Invalid User!", { cause: 404 }));
+    }
+
+    const currentUser = req.user;
+
+    // Update the current user's friends array
+    await userModel.findByIdAndUpdate(
+        currentUser._id,
+        { $addToSet: { friends: { user: friendUser._id, place: 'main' } } }
+    );
+
+    // Update the friend user's friends array
+    await userModel.findByIdAndUpdate(
+        friendUser._id,
+        { $addToSet: { friends: { user: currentUser._id, place: 'main' } } }
+    );
+
+    res.status(202).json({ message: 'Done!' });
+});
+
+export const getFriends = asyncHandler(async (req, res, next) => {
+    const friends = await userModel.findById(req.user._id).select('friends').populate({ path: 'friends.user', select: 'userName image' });
+    res.status(202).json({ message: 'Done!', friends })
+})
+
+
+export const getUser = () => {
     return user
 }

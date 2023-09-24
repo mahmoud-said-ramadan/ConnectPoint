@@ -4,10 +4,11 @@ import { hash, compare, encrypt } from "../../../utilis/Hash-Encrypt.js";
 import { generateToken, verifyToken } from "../../../utilis/GenerateAndVerifyToken.js";
 import { nanoid } from "nanoid";
 import cloudinary from "../../../utilis/cloudinary.js";
+import { createMail, sendMail } from "../../../utilis/email.js";
 // import { OAuth2Client } from 'google-auth-library';
 // const client = new OAuth2Client();
 
-export const signUp = asyncHandler(async (req, res, next) => {
+export const signUp = asyncHandler( async (req, res, next) => {
     const protocol = req.protocol;
     const host = req.headers.host;
     let { userName, email } = req.body;

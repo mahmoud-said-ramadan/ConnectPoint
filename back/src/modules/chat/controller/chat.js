@@ -1,9 +1,11 @@
 import chatModel from "../../../../DB/model/Chat.model.js";
 import userModel from "../../../../DB/model/User.model.js";
 import { asyncHandler } from "../../../utilis/errorHandling.js";
+import { getIo } from "../../../utilis/server.js";
 
 
 export const sendMessage = asyncHandler(async (req, res, next) => {
+    console.log('Send Message');
     const { message, to } = req.body;
     const isToExist = await userModel.findById(to)
     if (!isToExist) {
@@ -16,10 +18,10 @@ export const sendMessage = asyncHandler(async (req, res, next) => {
         ]
     }).populate([
         {
-            path: 'userOne'
+            path: 'messages.from'
         },
         {
-            path: 'userTwo'
+            path: 'messages.to'
         }
     ]);
     if (!chatExist) {
@@ -32,18 +34,38 @@ export const sendMessage = asyncHandler(async (req, res, next) => {
                 message
             }]
         });
-        // get.io.to()
-        return res.status(201).json({ message: 'Done!', newChat });
+        getIo().to(isToExist.socketId).emit('recieveMessage', { chatId: newChat._id, message, sender: req.user });
+        return res.status(201).json({ message: 'Done!' });
     }
 
-    chatExist.messages.push({
+    // const chat = await chatModel.findOneAndUpdate({ _id: chatExist._id }, {
+    //     $push:
+    //     {
+    //         messages: {
+    //             from: req.user._id,
+    //             to,
+    //             message
+    //         }
+    //     }
+    // }, {new:true});
+
+    chatExist?.messages.push({
         from: req.user._id,
         to,
         message
     });
     await chatExist.save();
-    // get.io.to()
-    return res.status(201).json({ message: 'Done!', chatExist });
+    // console.log(getIo());
+    console.log(isToExist.socketId);
+
+    // getIo().on('connection', socket => {
+    //     console.log('444444444444444444444444444444444444');
+    //     console.log({socket:socket.id});
+    //     socket.to(isToExist.socketId).emit('recieveMessage', {message, to});
+    // })
+    getIo().to(isToExist.socketId).emit('recieveMessage', { chatId: chatExist._id, message, sender: req.user });
+    // getIo().to(isToExist.socketId).emit('recieveMessage', { chatId: chatExist._id, message, isToExist });
+    return res.status(201).json({ message: 'Done!' });
 })
 
 export const getChat = asyncHandler(async (req, res, next) => {
@@ -55,10 +77,10 @@ export const getChat = asyncHandler(async (req, res, next) => {
         ]
     }).populate([
         {
-            path: 'userOne'
+            path: 'messages.from'
         },
         {
-            path: 'userTwo'
+            path: 'messages.to'
         }
     ]);
     return res.status(201).json({ message: 'Done!', chat });

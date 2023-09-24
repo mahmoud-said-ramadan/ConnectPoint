@@ -15,3 +15,12 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+img {
+  height: auto !important;
+}
+.image-container
+{
+  min-width: 30px;
+  min-height: 30px;
+}
