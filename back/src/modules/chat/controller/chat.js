@@ -38,33 +38,13 @@ export const sendMessage = asyncHandler(async (req, res, next) => {
         return res.status(201).json({ message: 'Done!' });
     }
 
-    // const chat = await chatModel.findOneAndUpdate({ _id: chatExist._id }, {
-    //     $push:
-    //     {
-    //         messages: {
-    //             from: req.user._id,
-    //             to,
-    //             message
-    //         }
-    //     }
-    // }, {new:true});
-
     chatExist?.messages.push({
         from: req.user._id,
         to,
         message
     });
     await chatExist.save();
-    // console.log(getIo());
-    console.log(isToExist.socketId);
-
-    // getIo().on('connection', socket => {
-    //     console.log('444444444444444444444444444444444444');
-    //     console.log({socket:socket.id});
-    //     socket.to(isToExist.socketId).emit('recieveMessage', {message, to});
-    // })
     getIo().to(isToExist.socketId).emit('recieveMessage', { chatId: chatExist._id, message, sender: req.user });
-    // getIo().to(isToExist.socketId).emit('recieveMessage', { chatId: chatExist._id, message, isToExist });
     return res.status(201).json({ message: 'Done!' });
 })
 

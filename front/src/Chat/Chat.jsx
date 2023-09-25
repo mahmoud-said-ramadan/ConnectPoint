@@ -1,25 +1,25 @@
 import React, { useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 import userIcon from './user-icon.png'
+import popSound from './popUp-message-2.mp3'
+import notificationSound from './Notification.mp3'
 import jwt_decode from "jwt-decode";
 import io from 'socket.io-client';
 import Message from '../Message/Message.jsx';
 
 
 const token = localStorage.getItem('token')
-console.log(token);
 const header = {
     authorization: `kokoz ` + token?.replace(/"/g, '')
 }
+
 
 const baseUrl = 'http://localhost:5000/';
 const clientIo = io(baseUrl);
 
 const { id } = jwt_decode(token);
-console.log(id);
 
 clientIo.emit('updateSocketId', id);
-
 clientIo.on('updateSocketId', data => {
     console.log('ppppppppppppppppppppppppppppppppppp');
     console.log(data);
@@ -32,37 +32,44 @@ clientIo.on('updateSocketId', data => {
 
 export default function Chat() {
     const [isLogin, setIsLogin] = useState(false);
+    const [user, setUser] = useState(null);
+    const [friends, setFriends] = useState([]);
+    const [chat, setChat] = useState([]);
+    const [chatHeader, setChatHeader] = useState(null);
+    const [friendId, setFriendId] = useState(null);
+    const friendIdRef = useRef(null);
+    const [messages, setMessages] = useState([]);
+    const [newMessageCount, setNewMessageCount] = useState({});
+    const [activeFriendsCount, setActiveFriendsCount] = useState(0);
+
     // const [loginId, setLoginId] = useState(null)
     // let userId;
     const getIsLogin = () => {
-        console.log('1');
         if (token) {
             setIsLogin(true);
             getUser();
-
             // setLoginId(id)
             getFriends();
         }
     }
 
-    const [user, setUser] = useState(null);
+
     const getUser = async () => {
-        console.log(header);
         const { data } = await axios('http://localhost:5000/user/', { headers: header });
-        console.log('----------------user------------------');
+        console.log('----------------user1------------------');
         console.log(data.user);
-        console.log('----------------user------------------');
+        console.log('----------------user2------------------');
         data?.message ? setUser(data.user) : setUser(null);
     }
 
     // friends start //
-    const [friends, setFriends] = useState([]);
+
 
     const getFriends = async () => {
         const { data } = await axios('http://localhost:5000/user/getFriends', { headers: header });
-        console.log('-------------friends---------------------');
+        console.log('-------------friends1---------------------');
         console.log(data.friends.friends);
-        console.log('--------------friends--------------------');
+        console.log('--------------friends2--------------------');
         data?.message ? setFriends(data.friends.friends) : setFriends(null);
     }
     // friends end //
@@ -70,70 +77,71 @@ export default function Chat() {
 
 
     // Chat start //
-    const [chat, setChat] = useState([]);
-    const [chatHeader, setChatHeader] = useState(null);
+
 
     const getChat = async (userId) => {
+        console.log({ userId }, 'kkkkkkkkkkkkkkkkkkkkkkkkkk');
+        if (userId) {
+            setFriendId(userId);
+            friendIdRef.current = userId; // Update the ref value
+        }
         let friend = friends.find(friend => friend.user._id === userId);
         console.log({ friend });
         setChatHeader(friend);
-        const { data } = await axios(`http://localhost:5000/chat/${userId}`, { headers: header });
+        console.log(friend.user._id, 'ttttttttttttttttt');
+        const { data } = await axios(`http://localhost:5000/chat/${friend.user._id}`, { headers: header });
         console.log('--------------chat--------------------');
         console.log(data.chat);
         console.log('---------------chat-------------------');
         if (data.chat) {
             setChat(data.chat);
+            // setMessages(null);  // To clear the message array first
             data.chat.messages.forEach(ele => {
                 const newMessage = {
-                    // chatId: ele._id,
                     message: ele.message,
                     sender: { image: ele.from.image?.secure_url || userIcon, id: ele.from._id },
                 };
                 appendMessage(newMessage);
             });
-        }
-        else {
+        } else {
             setChat(null);
         }
 
-        setFriendId(userId);
+        // Reset the new message count for the selected friend
+        setNewMessageCount((prevCount) => ({
+            ...prevCount,
+            [userId]: 0,
+        }));
+    };
 
-
-
-
-    }
     // Chat end //
 
 
-    const [messages, setMessages] = useState([]);
 
     const appendMessage = (messageData) => {
-        console.log({ messageData });
         setMessages((prevMessages) => [...prevMessages, messageData]);
     };
 
-    const [friendId, setFriendId] = useState(null);
+
+
 
     const sendMessage = async () => {
         try {
             let message = document.getElementById("message-input");
             if (friendId && message) {
-                console.log(typeof (friendId));
                 console.log(`Sending message to friend with ID: ${friendId}`);
                 const data = await axios.post(`http://localhost:5000/chat/`, { message: message.value, to: friendId }, { headers: header });
-                console.log('--------------message--------------------');
+                console.log('--------------message-1-------------------');
                 console.log(data);
-                console.log('-----------------message-----------------');
+                console.log('-----------------message-2----------------');
                 if (data.status === 201) {
                     console.log('SENT YASTA');
-
                     const newMessage = {
                         // chatId: data.chatId,
                         message: message.value,
                         sender: { image: user.image?.secure_url || userIcon, id: user._id },
                     };
                     appendMessage(newMessage);
-
                 }
                 else {
                     console.log("FAIL YASTA");
@@ -147,9 +155,26 @@ export default function Chat() {
         }
     }
 
-    useEffect(() => {
-        getIsLogin();
-    }, []);
+    function playMessageSound() {
+        console.log('playMessageSound');
+        // Check if the audio is supported and the element exists
+        const messageSound = document.getElementById('messageSound');
+        if (messageSound && typeof messageSound.play === 'function') {
+            messageSound.volume = 0.3;
+            messageSound.play();
+        }
+    }
+
+    // Function to play the notification sound
+    function playNotificationSound() {
+        console.log('playNotificationSound');
+        const notificationSound = document.getElementById('notificationSound');
+        if (notificationSound && typeof notificationSound.play === 'function') {
+            notificationSound.volume = 0.3;
+            notificationSound.play();
+        }
+        // Play the sound logic
+    }
 
     const messageRef = useRef();
     useEffect(() => {
@@ -160,42 +185,73 @@ export default function Chat() {
                 inline: 'nearest'
             });
         }
-
     }, [messages]); // Add 'chat' as a dependency to trigger the effect when chat messages update
 
+    let isChatActive = true;
+
+    useEffect(() => {
+        // const [isChatActive, setIsChatActive] = useState(true);
+
+        getIsLogin();
+        // Function to handle visibility change
+        function handleVisibilityChange() {
+            console.log(document.visibilityState === 'visible');
+            console.log('666666666666666666666666666666666666666666666666666');
+            (document.visibilityState === 'visible') ? isChatActive = true : isChatActive = false;
+        }
+
+        // Add event listener for visibility change
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        // Clean up the event listener on component unmount
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // Empty dependency array to run the effect only once
 
 
     useEffect(() => {
-        clientIo.on('recieveMessage', data => {
-            console.log('=======================================');
+
+        const receiveMessageHandler = (data) => {
+            console.log('==================receiveMessageHandler=1====================');
             console.log(data);
-            console.log('=======================================');
-            // const div = document.createElement('div');
-            // div.className = 'col-start-1 col-end-8 p-3 rounded-lg';
-            // div.innerHTML = `
-            //                     <div className="flex flex-row items-center">
-            //                         <div className="h-8 w-8 bg-indigo-200 rounded-full overflow-hidden image-container">
-            //                             <img src='${data.isToExist.image?.secure_url || userIcon}' alt="Avatar" className="h-full w-full object-cover" />
-            //                         </div>
-            //                         <div className="relative ml-3 text-sm bg-white py-2 px-4 shadow rounded-xl">
-            //                             <div className="text-left">${data.message}</div>
-            //                         </div>
-            //                     </div>
-            //                 `;
-            // document.getElementById('chatContent').appendChild(div);
+            console.log('===================receiveMessageHandler=2===================');
+            const sender = { image: data.sender.image?.secure_url || userIcon, id: data.sender._id };
+            const senderId = sender.id;
 
             const newMessage = {
                 // chatId: data.chatId,
                 message: data.message,
-                sender: { image: data.sender.image?.secure_url || userIcon, id: data.sender._id },
+                sender,
             };
             appendMessage(newMessage);
-        })
-        // Clean up the event listener when component unmounts
-        return () => {
-            clientIo.off('receiveMessage');
+            // Play the notification sound if the chat with the friend is not currently open
+            console.log({ senderId, friendId: friendIdRef.current });
+            console.log(chatHeader);
+            if (senderId !== friendIdRef.current) {
+                playNotificationSound();
+                // Increment the new message count for the friend
+                setNewMessageCount((prevCount) => ({
+                    ...prevCount,
+                    [senderId]: (prevCount[senderId] || 0) + 1,
+                }));
+            }
+            else {
+                playMessageSound();
+            }
+            // Play the sound when a new message arrives
+            // console.log(isChatActive);
+            // isChatActive ? playMessageSound() : playNotificationSound();
         };
-    }, [])
+
+        clientIo.on('recieveMessage', receiveMessageHandler);
+
+        // Clean up the event listener when the component unmounts
+        return () => {
+            clientIo.off('recieveMessage', receiveMessageHandler);
+        };
+    }, []); // The empty dependency array ensures that the effect runs only once
 
 
 
@@ -227,263 +283,336 @@ export default function Chat() {
                                             </div>
                                             <div className="leading-none ml-1 text-xs">{user.status}</div>
                                         </div>
-                                    </>
-                                    : ''
+                                        <input type="checkbox" checked data-toggle="toggle" data-size="small"></input>
+                                        </>
+                                        : ''
                                 }
-
-                            </div>
-                            <div className="flex flex-col mt-8">
-                                {friends.length ?
-                                    <>
-                                        <div className="flex flex-row items-center justify-between text-xs">
-                                            <span className="font-bold">Active Conversations</span>
-                                            <span className="flex items-center justify-center bg-gray-300 h-4 w-4 rounded-full">4</span>
-                                        </div>
-                                        <div className="flex flex-col space-y-1 mt-4 -mx-2 h-48 overflow-y-auto">
-                                            {friends.map((friend) => (
-                                                friend.place === 'main' && (
-                                                    <button
-                                                        key={friend.user._id}
-                                                        onClick={() => getChat(friend.user._id)}
-                                                        className="flex flex-row items-center hover:bg-gray-100 rounded-xl p-2"
-                                                    >
-                                                        <div className="flex items-center">
-                                                            <div className="h-8 w-8 bg-indigo-200 rounded-full overflow-hidden image-container">
-                                                                <img src={friend.user.image?.secure_url || userIcon} alt="Avatar" className="h-full w-full object-cover" />
-                                                            </div>
-                                                            <div className="ml-2 text-sm font-semibold">{friend.user.userName}</div>
-                                                        </div>
-                                                    </button>
-                                                )
-                                            ))}
-                                        </div>
-                                        {friends.some((friend) => friend.place === 'archive') && (
-                                            <>
-                                                <div className="flex flex-row items-center justify-between text-xs mt-6">
-                                                    <span className="font-bold">Archived</span>
-                                                    <span className="flex items-center justify-center bg-gray-300 h-4 w-4 rounded-full">7</span>
-                                                </div>
-                                                <div className="flex flex-col space-y-1 mt-4 -mx-2">
-                                                    {friends.map((friend) => (
-                                                        friend.place === 'archive' && (
-                                                            <button
-                                                                key={friend.user._id}
-                                                                onClick={() => getChat(friend.user._id)}
-                                                                className="flex flex-row items-center hover:bg-gray-100 rounded-xl p-2"
-                                                            >
-                                                                <div className="flex items-center">
-                                                                    <div className="h-8 w-8 bg-indigo-200 rounded-full overflow-hidden image-container">
-                                                                        <img src={friend.user.image?.secure_url || userIcon} alt="Avatar" className="h-full w-full object-cover" />
-                                                                    </div>
-                                                                    <div className="ml-2 text-sm font-semibold">{friend.user.userName}</div>
+                                    </div>
+                                <div className="flex flex-col mt-8">
+                                    {friends.length ?
+                                        <>
+                                            <div className="flex flex-row items-center justify-between text-xs">
+                                                <span className="font-bold">Active Conversations</span>
+                                                <span className="flex items-center justify-center bg-gray-300 h-4 w-4 rounded-full">
+                                                    {friends.filter((friend) => friend.place === 'main').length}
+                                                </span>
+                                            </div>
+                                            <div className="flex flex-col space-y-1 mt-4 -mx-2 h-48 overflow-y-auto">
+                                                {friends.map((friend) => (
+                                                    friend.place === 'main' && (
+                                                        <div
+                                                            key={friend.user._id}
+                                                            onClick={() => getChat(friend.user._id)}
+                                                            className={`flex flex-row items-center hover:bg-gray-100 rounded-xl p-2 friend-row ${friend.user._id === friendId ? 'active' : ''}`}
+                                                        >
+                                                            <div className="flex items-center">
+                                                                <div className="h-8 w-8 bg-indigo-200 rounded-full overflow-hidden image-container">
+                                                                    <img src={friend.user.image?.secure_url || userIcon} alt="Avatar" className="h-full w-full object-cover" />
                                                                 </div>
-                                                            </button>
-                                                        )
-                                                    ))}
+                                                                <div className="ml-2 text-sm font-semibold">
+                                                                    {friend.user.userName} {newMessageCount[friend.user._id] > 0 && (
+                                                                        <span className="new-message-count">
+                                                                            {newMessageCount[friend.user._id]}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                ))}
+                                            </div>
+                                            {friends.some((friend) => friend.place === 'archive') && (
+                                                <>
+                                                    <div className="flex flex-row items-center justify-between text-xs mt-6">
+                                                        <span className="font-bold">Archived</span>
+                                                        <span className="flex items-center justify-center bg-gray-300 h-4 w-4 rounded-full">
+                                                            {friends.filter((friend) => friend.place === 'archive').length}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex flex-col space-y-1 mt-4 -mx-2">
+                                                        {friends.map((friend) => (
+                                                            friend.place === 'archive' && (
+                                                                <button
+                                                                    key={friend.user._id}
+                                                                    onClick={() => getChat(friend.user._id)}
+                                                                    className="flex flex-row items-center hover:bg-gray-100 rounded-xl p-2"
+                                                                >
+                                                                    <div className="flex items-center">
+                                                                        <div className="h-8 w-8 bg-indigo-200 rounded-full overflow-hidden image-container">
+                                                                            <img src={friend.user.image?.secure_url || userIcon} alt="Avatar" className="h-full w-full object-cover" />
+                                                                        </div>
+                                                                        <div className="ml-2 text-sm font-semibold">{friend.user.userName}</div>
+                                                                    </div>
+                                                                </button>
+                                                            )
+                                                        ))}
+                                                    </div>
+                                                </>
+                                            )}
+                                        </>
+                                        :
+                                        ''
+                                    }
+                                </div>
+                            </div>
+                            <div className="flex flex-col flex-auto h-full p-6" style={{ height: "95%" }}>
+                                {chatHeader ?
+                                    <>
+                                        <div className="py-2 px-3 bg-teal-500 flex flex-row justify-between items-center">
+                                            <div className="flex items-center">
+                                                <div className='h-8 w-8 bg-indigo-200 rounded-full overflow-hidden image-container'>
+                                                    <img className="w-10 h-10 rounded-full" src={chatHeader.user.image?.secure_url} />
                                                 </div>
-                                            </>
-                                        )}
+                                                <div className="ml-4">
+                                                    <p style={{ display: 'block' }} className="text-grey-darkest">{chatHeader.user.userName}</p>
+                                                    {/* <p style={{ display: 'block' }} className="text-grey-darker text-xs mt-1">Andrés, Tom, Harrison, Arnold, Sylvester</p> */}
+                                                </div>
+                                            </div>
+                                            <div className="flex">
+                                                <div>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width={24} height={24}>
+                                                        <path fill="#263238" fillOpacity=".5" d="M15.9 14.3H15l-.3-.3c1-1.1 1.6-2.7 1.6-4.3 0-3.7-3-6.7-6.7-6.7S3 6 3 9.7s3 6.7 6.7 6.7c1.6 0 3.2-.6 4.3-1.6l.3.3v.8l5.1 5.1 1.5-1.5-5-5.2zm-6.2 0c-2.6 0-4.6-2.1-4.6-4.6s2.1-4.6 4.6-4.6 4.6 2.1 4.6 4.6-2 4.6-4.6 4.6z" /></svg>
+                                                </div>
+                                                {/* <div className="ml-6">
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width={24} height={24}>
+                                                    <path fill="#263238" fillOpacity=".5" d="M1.816 15.556v.002c0 1.502.584 2.912 1.646 3.972s2.472 1.647 3.974 1.647a5.58 5.58 0 0 0 3.972-1.645l9.547-9.548c.769-.768 1.147-1.767 1.058-2.817-.079-.968-.548-1.927-1.319-2.698-1.594-1.592-4.068-1.711-5.517-.262l-7.916 7.915c-.881.881-.792 2.25.214 3.261.959.958 2.423 1.053 3.263.215l5.511-5.512c.28-.28.267-.722.053-.936l-.244-.244c-.191-.191-.567-.349-.957.04l-5.506 5.506c-.18.18-.635.127-.976-.214-.098-.097-.576-.613-.213-.973l7.915-7.917c.818-.817 2.267-.699 3.23.262.5.501.802 1.1.849 1.685.051.573-.156 1.111-.589 1.543l-9.547 9.549a3.97 3.97 0 0 1-2.829 1.171 3.975 3.975 0 0 1-2.83-1.173 3.973 3.973 0 0 1-1.172-2.828c0-1.071.415-2.076 1.172-2.83l7.209-7.211c.157-.157.264-.579.028-.814L11.5 4.36a.572.572 0 0 0-.834.018l-7.205 7.207a5.577 5.577 0 0 0-1.645 3.971z" /></svg>
+                                            </div> */}
+                                                <div className="ml-6">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width={24} height={24}>
+                                                        <path fill="#263238" fillOpacity=".6" d="M12 7a2 2 0 1 0-.001-4.001A2 2 0 0 0 12 7zm0 2a2 2 0 1 0-.001 3.999A2 2 0 0 0 12 9zm0 6a2 2 0 1 0-.001 3.999A2 2 0 0 0 12 15z" /></svg>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div id="chat-container" className="flex flex-col flex-auto flex-shrink-0 rounded-2xl bg-gray-100 h-full">
+                                            <div className="flex flex-col h-full overflow-x-auto mb-4" >
+                                                <div className="flex flex-col h-full">
+                                                    {chat?.messages ?
+                                                        <>
+                                                            <div id='chatContent' className="grid grid-cols-12 gap-y-2" ref={messageRef}>
+                                                                {/* Render existing messages */}
+                                                                {messages.map((messageData, index) => (
+                                                                    <Message key={index} messageData={messageData} />
+                                                                ))}
+                                                                <audio id="messageSound" preload="auto">
+                                                                    <source src={popSound} type="audio/mpeg" />
+                                                                </audio>
+                                                            </div>
+                                                        </>
+                                                        :
+                                                        <div className="flex justify-center items-center h-full">
+                                                            <div className="bg-gray-200 p-4 rounded-lg">
+                                                                <p className="text-gray-600 text-lg">Say Hi To Start A Chat</p>
+                                                            </div>
+                                                        </div>
+                                                    }
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-row items-center h-16 rounded-xl bg-white w-full px-4">
+                                                <div>
+                                                    <button className="flex items-center justify-center text-gray-400 hover:text-gray-600">
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <div className="flex-grow ml-4">
+                                                    <div className="relative w-full">
+                                                        <input id='message-input' type="text" className="flex w-full border rounded-xl focus:outline-none focus:border-indigo-300 pl-4 h-10" />
+                                                        <button className="absolute flex items-center justify-center h-full w-12 right-0 top-0 text-gray-400 hover:text-gray-600">
+                                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                            </svg>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <div className="ml-4">
+                                                    <button onClick={() => sendMessage()} className="flex items-center justify-center bg-indigo-500 hover:bg-indigo-600 rounded-xl text-white px-4 py-1 flex-shrink-0">
+                                                        <span>Send</span>
+                                                        <span className="ml-2">
+                                                            <svg className="w-4 h-4 transform rotate-45 -mt-px" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                                                            </svg>
+                                                        </span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </>
                                     :
                                     ''
                                 }
                             </div>
                         </div>
-                        <div className="flex flex-col flex-auto h-full p-6" style={{ height: "95%" }}>
-                            {chatHeader ?
-                                <>
-                                    <div className="py-2 px-3 bg-teal-500 flex flex-row justify-between items-center">
-                                        <div className="flex items-center">
-                                            <div className='h-8 w-8 bg-indigo-200 rounded-full overflow-hidden image-container'>
-                                                <img className="w-10 h-10 rounded-full" src={chatHeader.user.image?.secure_url} />
-                                            </div>
-                                            <div className="ml-4">
-                                                <p style={{ display: 'block' }} className="text-grey-darkest">{chatHeader.user.userName}</p>
-                                                {/* <p style={{ display: 'block' }} className="text-grey-darker text-xs mt-1">Andrés, Tom, Harrison, Arnold, Sylvester</p> */}
-                                            </div>
-                                        </div>
-                                        <div className="flex">
-                                            <div>
-                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width={24} height={24}>
-                                                    <path fill="#263238" fillOpacity=".5" d="M15.9 14.3H15l-.3-.3c1-1.1 1.6-2.7 1.6-4.3 0-3.7-3-6.7-6.7-6.7S3 6 3 9.7s3 6.7 6.7 6.7c1.6 0 3.2-.6 4.3-1.6l.3.3v.8l5.1 5.1 1.5-1.5-5-5.2zm-6.2 0c-2.6 0-4.6-2.1-4.6-4.6s2.1-4.6 4.6-4.6 4.6 2.1 4.6 4.6-2 4.6-4.6 4.6z" /></svg>
-                                            </div>
-                                            {/* <div className="ml-6">
-                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width={24} height={24}>
-                                                    <path fill="#263238" fillOpacity=".5" d="M1.816 15.556v.002c0 1.502.584 2.912 1.646 3.972s2.472 1.647 3.974 1.647a5.58 5.58 0 0 0 3.972-1.645l9.547-9.548c.769-.768 1.147-1.767 1.058-2.817-.079-.968-.548-1.927-1.319-2.698-1.594-1.592-4.068-1.711-5.517-.262l-7.916 7.915c-.881.881-.792 2.25.214 3.261.959.958 2.423 1.053 3.263.215l5.511-5.512c.28-.28.267-.722.053-.936l-.244-.244c-.191-.191-.567-.349-.957.04l-5.506 5.506c-.18.18-.635.127-.976-.214-.098-.097-.576-.613-.213-.973l7.915-7.917c.818-.817 2.267-.699 3.23.262.5.501.802 1.1.849 1.685.051.573-.156 1.111-.589 1.543l-9.547 9.549a3.97 3.97 0 0 1-2.829 1.171 3.975 3.975 0 0 1-2.83-1.173 3.973 3.973 0 0 1-1.172-2.828c0-1.071.415-2.076 1.172-2.83l7.209-7.211c.157-.157.264-.579.028-.814L11.5 4.36a.572.572 0 0 0-.834.018l-7.205 7.207a5.577 5.577 0 0 0-1.645 3.971z" /></svg>
-                                            </div> */}
-                                            <div className="ml-6">
-                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width={24} height={24}>
-                                                    <path fill="#263238" fillOpacity=".6" d="M12 7a2 2 0 1 0-.001-4.001A2 2 0 0 0 12 7zm0 2a2 2 0 1 0-.001 3.999A2 2 0 0 0 12 9zm0 6a2 2 0 1 0-.001 3.999A2 2 0 0 0 12 15z" /></svg>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div id="chat-container" className="flex flex-col flex-auto flex-shrink-0 rounded-2xl bg-gray-100 h-full">
-                                        <div className="flex flex-col h-full overflow-x-auto mb-4" >
-                                            <div className="flex flex-col h-full">
-                                                {chat?.messages ?
-                                                    <>
-                                                        <div id='chatContent' className="grid grid-cols-12 gap-y-2" ref={messageRef}>
-                                                            {/* {chat.messages.map(message => ( */}
+                    </div >
+                    :
+                    <h1 className=' mx-2 my-6 py-10 px-2' style={{ color: 'black', backgroundColor: 'red' }}>Please Login First!</h1>
+            }
+                    <audio id="notificationSound" preload="auto">
+                        <source src={notificationSound} type="audio/mpeg" />
+                    </audio>
+                    <label className="relative inline-flex items-center mr-5 cursor-pointer">
+                        <input type="checkbox" defaultValue className="sr-only peer" defaultChecked />
+                        <div className="w-11 h-6 bg-gray-200 rounded-full peer dark:bg-gray-700 peer-focus:ring-4 peer-focus:ring-teal-300 dark:peer-focus:ring-teal-800 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-teal-600" />
+                        <span className="ml-3 text-sm font-medium text-gray-900 dark:text-gray-300">Teal</span>
+                    </label>
 
-                                                            <>
-                                                                {/* Render existing messages */}
-                                                                {messages.map((messageData, index) => (
-                                                                    <Message key={index} messageData={messageData} />
+                </>
+    )
+}
 
-                                                                ))}
-                                                                {/* {message.from._id === loginId ? (
-                                                                        <div className="col-start-6 col-end-13 p-3 rounded-lg">
-                                                                            <div className="flex items-center justify-start flex-row-reverse">
-                                                                                <div className="h-8 w-8 bg-indigo-200 rounded-full overflow-hidden image-container">
-                                                                                    <img src={message.from.image?.secure_url || userIcon} alt="Avatar" className="h-full w-full object-cover" />
-                                                                                </div>
-                                                                                <div className="relative ml-3 text-sm bg-indigo-100 py-2 px-4 shadow rounded-xl">
-                                                                                    <div className="text-left">{message.message}</div>
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-                                                                    ) : (
-                                                                        <div className="col-start-1 col-end-8 p-3 rounded-lg">
-                                                                            <div className="flex flex-row items-center">
-                                                                                <div className="h-8 w-8 bg-indigo-200 rounded-full overflow-hidden image-container">
-                                                                                    <img src={message.from.image?.secure_url || userIcon} alt="Avatar" className="h-full w-full object-cover" />
-                                                                                </div>
-                                                                                <div className="relative ml-3 text-sm bg-white py-2 px-4 shadow rounded-xl">
-                                                                                    <div className="text-left">{message.message}</div>
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-                                                                    )} */}
-                                                            </>
-                                                            {/* ))} */}
-                                                        </div>
-                                                    </>
-                                                    :
-                                                    <div className="flex justify-center items-center h-full">
-                                                        <div className="bg-gray-200 p-4 rounded-lg">
-                                                            <p className="text-gray-600 text-lg">Say Hi To Start A Chat</p>
-                                                        </div>
-                                                    </div>
-                                                }
 
-                                                {/* <div className="col-start-1 col-end-8 p-3 rounded-lg">
-                                                <div className="flex flex-row items-center">
-                                                    <div className="flex items-center justify-center h-10 w-10 rounded-full bg-indigo-500 flex-shrink-0">
-                                                        A
-                                                    </div>
-                                                    <div className="relative ml-3 text-sm bg-white py-2 px-4 shadow rounded-xl">
-                                                        <div>
-                                                            Lorem ipsum dolor sit amet, consectetur adipisicing
-                                                            elit. Vel ipsa commodi illum saepe numquam maxime
-                                                            asperiores voluptate sit, minima perspiciatis.
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="col-start-6 col-end-13 p-3 rounded-lg">
-                                                <div className="flex items-center justify-start flex-row-reverse">
-                                                    <div className="flex items-center justify-center h-10 w-10 rounded-full bg-indigo-500 flex-shrink-0">
-                                                        A
-                                                    </div>
-                                                    <div className="relative mr-3 text-sm bg-indigo-100 py-2 px-4 shadow rounded-xl">
-                                                        <div>I'm ok what about you?</div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="col-start-6 col-end-13 p-3 rounded-lg">
-                                                <div className="flex items-center justify-start flex-row-reverse">
-                                                    <div className="flex items-center justify-center h-10 w-10 rounded-full bg-indigo-500 flex-shrink-0">
-                                                        A
-                                                    </div>
-                                                    <div className="relative mr-3 text-sm bg-indigo-100 py-2 px-4 shadow rounded-xl">
-                                                        <div>
-                                                            Lorem ipsum dolor sit, amet consectetur adipisicing. ?
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="col-start-1 col-end-8 p-3 rounded-lg">
-                                                <div className="flex flex-row items-center">
-                                                    <div className="flex items-center justify-center h-10 w-10 rounded-full bg-indigo-500 flex-shrink-0">
-                                                        A
-                                                    </div>
-                                                    <div className="relative ml-3 text-sm bg-white py-2 px-4 shadow rounded-xl">
-                                                        <div>Lorem ipsum dolor sit amet !</div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="col-start-6 col-end-13 p-3 rounded-lg">
-                                                <div className="flex items-center justify-start flex-row-reverse">
-                                                    <div className="flex items-center justify-center h-10 w-10 rounded-full bg-indigo-500 flex-shrink-0">
-                                                        A
-                                                    </div>
-                                                    <div className="relative mr-3 text-sm bg-indigo-100 py-2 px-4 shadow rounded-xl">
-                                                        <div>
-                                                            Lorem ipsum dolor sit, amet consectetur adipisicing. ?
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="col-start-1 col-end-8 p-3 rounded-lg">
-                                                <div className="flex flex-row items-center">
-                                                    <div className="flex items-center justify-center h-10 w-10 rounded-full bg-indigo-500 flex-shrink-0">
-                                                        A
-                                                    </div>
-                                                    <div className="relative ml-3 text-sm bg-white py-2 px-4 shadow rounded-xl">
-                                                        <div>Lorem ipsum dolor sit amet !</div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="col-start-6 col-end-13 p-3 rounded-lg">
-                                                <div className="flex items-center justify-start flex-row-reverse">
-                                                    <div className="flex items-center justify-center h-10 w-10 rounded-full bg-indigo-500 flex-shrink-0">
-                                                        A
-                                                    </div>
-                                                    <div className="relative mr-3 text-sm bg-indigo-100 py-2 px-4 shadow rounded-xl">
-                                                        <div>
-                                                            Lorem ipsum dolor sit, amet consectetur adipisicing. ?
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="col-start-1 col-end-8 p-3 rounded-lg">
-                                                <div className="flex flex-row items-center">
-                                                    <div className="flex items-center justify-center h-10 w-10 rounded-full bg-indigo-500 flex-shrink-0">
-                                                        A
-                                                    </div>
-                                                    <div className="relative ml-3 text-sm bg-white py-2 px-4 shadow rounded-xl">
-                                                        <div>Lorem ipsum dolor sit amet !</div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="col-start-6 col-end-13 p-3 rounded-lg">
-                                                <div className="flex items-center justify-start flex-row-reverse">
-                                                    <div className="flex items-center justify-center h-10 w-10 rounded-full bg-indigo-500 flex-shrink-0">
-                                                        A
-                                                    </div>
-                                                    <div className="relative mr-3 text-sm bg-indigo-100 py-2 px-4 shadow rounded-xl">
-                                                        <div>
-                                                            Lorem ipsum dolor sit, amet consectetur adipisicing. ?
-                                                        </div>
-                                                        <div className="absolute text-xs bottom-0 right-0 -mb-5 mr-2 text-gray-500">
-                                                            Seen
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="col-start-1 col-end-8 p-3 rounded-lg">
-                                                <div className="flex flex-row items-center">
-                                                    <div className="flex items-center justify-center h-10 w-10 rounded-full bg-indigo-500 flex-shrink-0">
-                                                        A
-                                                    </div>
-                                                    <div className="relative ml-3 text-sm bg-white py-2 px-4 shadow rounded-xl">
-                                                        <div>
-                                                            Lorem ipsum dolor sit amet consectetur adipisicing elit.
-                                                            Perspiciatis, in.
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
+
+// import {useState, useEffect} from 'react';
+
+// function Sidebar() {
+                //     const [selectedFriend, setSelectedFriend] = useState(null);
+                //     const [unreadMessages, setUnreadMessages] = useState({});
+
+                //     // Function to handle selecting a friend
+                //     function handleFriendSelect(friend) {
+                //         setSelectedFriend(friend);
+                //     }
+
+                //     // Function to handle receiving a message
+                //     function handleReceiveMessage(message) {
+                //         // Update the unread messages state
+                //         setUnreadMessages((prevUnreadMessages) => ({
+                //             ...prevUnreadMessages,
+                //             [message.sender]: (prevUnreadMessages[message.sender] || 0) + 1,
+                //         }));
+                //     }
+
+                //     useEffect(() => {
+                //         // Add event listener to handle receiving messages
+                //         socket.on('message', handleReceiveMessage);
+
+                //         // Clean up the event listener on component unmount
+                //         return () => {
+                //             socket.off('message', handleReceiveMessage);
+                //         };
+                //     }, []);
+
+                //     return (
+                //         <div>
+                //             {/* Render your sidebar with friends */}
+                //             {friends.map((friend) => (
+                //                 <div
+                //                     key={friend.id}
+                //                     onClick={() => handleFriendSelect(friend)}
+                //                     className={selectedFriend === friend ? 'selected' : ''}
+                //                 >
+                //                     {friend.name}
+                //                     {unreadMessages[friend.id] > 0 && <span>{unreadMessages[friend.id]}</span>}
+                //                 </div>
+                //             ))}
+                //         </div>
+                //     );
+                // }
+
+                // function MainContent() {
+                //     const [currentFriend, setCurrentFriend] = useState(null);
+
+                //     useEffect(() => {
+                //         // Update the current friend when the selectedFriend state changes
+                //         setCurrentFriend(selectedFriend);
+                //     }, [selectedFriend]);
+
+                //     // ...
+
+                //     return (
+                //         <div>
+                //             {/* Render the chat interface with the current friend */}
+                //             {currentFriend && <ChatInterface friend={currentFriend} />}
+                //         </div>
+                //     );
+                // }
+
+                // function ChatInterface({ friend }) {
+                //     const [messages, setMessages] = useState([]);
+
+                //     // ...
+
+                //     return (
+                //         <div>
+                //             {/* Render the messages with the selected friend */}
+                //             {messages.map((message) => (
+                //                 <div key={message.id}>{message.content}</div>
+                //             ))}
+                //         </div>
+                //     );
+                // }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                {/* 
                                             <div className="col-start-1 col-end-8 p-3 rounded-lg">
                                                 <div className="flex flex-row items-center">
                                                     <div className="flex items-center justify-center h-10 w-10 rounded-full bg-indigo-500 flex-shrink-0">
@@ -534,87 +663,3 @@ export default function Chat() {
                                                     </div>
                                                 </div>
                                             </div> */}
-                                            </div>
-                                        </div>
-                                        <div className="flex flex-row items-center h-16 rounded-xl bg-white w-full px-4">
-                                            <div>
-                                                <button className="flex items-center justify-center text-gray-400 hover:text-gray-600">
-                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                                                    </svg>
-                                                </button>
-                                            </div>
-                                            <div className="flex-grow ml-4">
-                                                <div className="relative w-full">
-                                                    <input id='message-input' type="text" className="flex w-full border rounded-xl focus:outline-none focus:border-indigo-300 pl-4 h-10" />
-                                                    <button className="absolute flex items-center justify-center h-full w-12 right-0 top-0 text-gray-400 hover:text-gray-600">
-                                                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                        </svg>
-                                                    </button>
-                                                </div>
-                                            </div>
-                                            <div className="ml-4">
-                                                <button onClick={() => sendMessage()} className="flex items-center justify-center bg-indigo-500 hover:bg-indigo-600 rounded-xl text-white px-4 py-1 flex-shrink-0">
-                                                    <span>Send</span>
-                                                    <span className="ml-2">
-                                                        <svg className="w-4 h-4 transform rotate-45 -mt-px" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                                                        </svg>
-                                                    </span>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </>
-                                :
-                                ''
-                            }
-                        </div>
-                    </div>
-                </div >
-                :
-                <h1 className=' mx-2 my-6 py-10 px-2' style={{ color: 'black', backgroundColor: 'red' }}>Please Login First!</h1>
-            }
-        </>
-    )
-}
-
-
-
-
-
-// import React, { useState } from 'react';
-// import Message from './Message';
-
-// const Chat = () => {
-//     const [messages, setMessages] = useState([]);
-
-//     const appendMessage = (messageData) => {
-//         setMessages((prevMessages) => [...prevMessages, messageData]);
-//     };
-
-//     // Function to handle sending a new message
-//     const sendMessage = () => {
-//         // Process the message and recipient
-//         // ...
-
-//         // Append the new message to the chat
-//         const newMessage = {
-//             message: 'Hello',
-//             userImage: 'https://example.com/avatar.jpg',
-//         };
-//         appendMessage(newMessage);
-//     };
-
-//     return (
-//         <div id="chatContent">
-//             {/* Render existing messages */}
-//             {messages.map((messageData, index) => (
-//                 <Message key={index} message={messageData.message} userImage={messageData.userImage} />
-//             ))}
-//         </div>
-//     );
-// };
-
-// export default Chat;
