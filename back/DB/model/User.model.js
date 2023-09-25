@@ -57,6 +57,7 @@ const userSchema = new Schema({
     DOB: String,
     customId: String,
     socketId: String,
+    isActive: { type: Boolean, default: true },
 }, {
     timestamps: true
 })

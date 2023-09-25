@@ -19,4 +19,5 @@ export const updateUser = joi.object({
     DOB: generalFields.DOB,
     file: generalFields.file,
     address: joi.string().trim().max(250),
+    isActive: joi.boolean(),
 }).required()

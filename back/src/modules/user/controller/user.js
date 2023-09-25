@@ -17,7 +17,7 @@ export const getUserData = asyncHandler(
     async (req, res, next) => {
         const { _id } = req.user;
         let user = await userModel.findById(_id)
-            .select('userName image status');
+            .select('userName image status isActive');
         if (!user) {
             return next(new Error("In-Valid User!", { cause: 401 }));
         }

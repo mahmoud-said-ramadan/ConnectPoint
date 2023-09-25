@@ -8,7 +8,6 @@
     "@testing-library/user-event": "^13.5.0",
     "autoprefixer": "^10.4.16",
     "axios": "^1.5.0",
-    "bootstrap-toggle": "^2.2.2",
     "jwt-decode": "^3.1.2",
     "postcss": "^8.4.30",
     "react": "^18.2.0",
