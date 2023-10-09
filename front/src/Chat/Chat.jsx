@@ -6,25 +6,12 @@ import notificationSound from './Notification.mp3'
 import jwt_decode from "jwt-decode";
 import io from 'socket.io-client';
 import Message from '../Message/Message.jsx';
+import FileUploadMenu from './uploadFile.js'
+import Imojis from './imojis.js'
+import VoiceRecorder from './recordVoice.js'
 
 
-const token = localStorage.getItem('token')
-const header = {
-    authorization: `kokoz ` + token?.replace(/"/g, '')
-}
 
-
-const baseUrl = 'http://localhost:5000/';
-const clientIo = io(baseUrl);
-
-const { id } = jwt_decode(token);
-
-clientIo.emit('updateSocketId', id);
-clientIo.on('updateSocketId', data => {
-    console.log('ppppppppppppppppppppppppppppppppppp');
-    console.log(data);
-    console.log('ppppppppppppppppppppppppppppppppppp');
-})
 
 
 
@@ -34,13 +21,69 @@ export default function Chat() {
     const [isLogin, setIsLogin] = useState(false);
     const [user, setUser] = useState(null);
     const [friends, setFriends] = useState([]);
+    const friendsRef = useRef(friends);  // Store the friends value using useRef
     const [chat, setChat] = useState([]);
     const [chatHeader, setChatHeader] = useState(null);
     const [friendId, setFriendId] = useState(null);
     const friendIdRef = useRef(null);
     const [messages, setMessages] = useState([]);
     const [newMessageCount, setNewMessageCount] = useState({});
-    const [activeFriendsCount, setActiveFriendsCount] = useState(0);
+
+
+    const token = localStorage.getItem('token');
+
+
+
+
+    const baseUrl = 'http://localhost:5000/';
+    const clientIo = io(baseUrl);
+
+    const { id } = jwt_decode(token);
+
+    clientIo.emit('updateSocketId', id);
+    clientIo.on('updateSocketId', data => {
+        console.log('ppppppppppppppppppppppppppppppppppp');
+        console.log(data);
+        console.log('ppppppppppppppppppppppppppppppppppp');
+    })
+
+    const header = {
+        authorization: `kokoz ` + token?.replace(/"/g, '')
+    }
+
+
+
+    const handleFileUpload = async (file) => {
+        // Do something with the uploaded file
+        console.log('chat.jsx-----------------');
+        console.log(file);
+        // setUploadedFile(file);
+        try {
+            if (friendId && file) {
+                const data = await axios.post("http://localhost:5000/chat/", { file, to: friendId }, { headers: { ...header, "Content-Type": "multipart/form-data" } });
+                console.log('--------------message-1-------------------');
+                console.log(data);
+                console.log('-----------------message-2----------------');
+                if (data.status === 201) {
+                    console.log('SENT YASTA');
+                    const newMessage = {
+                        chatId: data.data.chatId,
+                        message: data.data.message,
+                        sender: { image: user.image?.secure_url || userIcon, id: user._id },
+                    };
+                    appendMessage(newMessage);
+                }
+                else {
+                    console.log("FAIL YASTA");
+                }
+                // clientIo.emit('addMessage', { message: message.value, to: friendId, header })
+                // data?.chat ? setChat(data?.chat) : setChat(chat);
+                document.getElementById("message-input").value = '';
+            }
+        } catch (error) {
+            console.log(error)
+        }
+    };
 
     // const [loginId, setLoginId] = useState(null)
     // let userId;
@@ -60,6 +103,8 @@ export default function Chat() {
         console.log(data.user);
         console.log('----------------user2------------------');
         data?.message ? setUser(data.user) : setUser(null);
+        // Emit the 'login' event when the user logs in
+        clientIo.emit('login', data.user._id);
     }
 
     // friends start //
@@ -77,18 +122,14 @@ export default function Chat() {
 
 
     // Chat start //
-
-
     const getChat = async (userId) => {
-        console.log({ userId }, 'kkkkkkkkkkkkkkkkkkkkkkkkkk');
+        setIsRecording(false)
         if (userId) {
             setFriendId(userId);
             friendIdRef.current = userId; // Update the ref value
         }
         let friend = friends.find(friend => friend.user._id === userId);
-        console.log({ friend });
         setChatHeader(friend);
-        console.log(friend.user._id, 'ttttttttttttttttt');
         const { data } = await axios(`http://localhost:5000/chat/${friend.user._id}`, { headers: header });
         console.log('--------------chat--------------------');
         console.log(data.chat);
@@ -98,7 +139,7 @@ export default function Chat() {
             // setMessages(null);  // To clear the message array first
             data.chat.messages.forEach(ele => {
                 const newMessage = {
-                    message: ele.message,
+                    message: ele,
                     sender: { image: ele.from.image?.secure_url || userIcon, id: ele.from._id },
                 };
                 appendMessage(newMessage);
@@ -113,13 +154,101 @@ export default function Chat() {
             [userId]: 0,
         }));
     };
-
     // Chat end //
 
 
 
     const appendMessage = (messageData) => {
         setMessages((prevMessages) => [...prevMessages, messageData]);
+    };
+
+    const formRef = useRef(null); // Initialize the ref with null
+
+    useEffect(() => {
+        const handleKeyUp = (event) => {
+            event.preventDefault();
+            if (event.keyCode === 13) {
+                sendMessage();
+            }
+        };
+
+        if (formRef.current) { // Check if the ref is assigned before adding the event listener
+            formRef.current.addEventListener('keyup', handleKeyUp);
+        }
+
+        return () => {
+            if (formRef.current) { // Check if the ref is assigned before removing the event listener
+                formRef.current.removeEventListener('keyup', handleKeyUp);
+            }
+        };
+    }, []);
+
+
+    const handleImojiSelected = (emoji) => {
+        console.log({ emoji });
+        const input = document.getElementById('message-input');
+        input.value += emoji.emoji;
+    };
+
+    const handleKeyDown = (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault(); // Prevent the default Enter key behavior
+            sendMessage();
+        }
+    };
+
+
+
+    // const [voiceMessage, setVoiceMessage] = useState("");
+    const [isRecording, setIsRecording] = useState(false);
+
+    const handleRecordingStatusChange = (status) => {
+        setIsRecording(status);
+    };
+
+    const sendVoice = async (voiceMessage) => {
+        // Handle sending the message
+        if (voiceMessage) {
+            // Send the voice message
+            console.log("Sending voice message:", voiceMessage);
+            console.log(`Sending message to friend with ID: ${friendId}`);
+            // Create a FormData object to send the voice message as multipart/form-data
+            const formData = new FormData();
+            formData.append("file", voiceMessage);
+            formData.append('to', friendId)
+            const config = {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                    ...header, // Add any additional headers here
+                },
+            };
+            const data = await axios.post(`http://localhost:5000/chat/`, formData, config);
+            console.log('--------------Voice-1-------------------');
+            console.log(data);
+            console.log('-----------------Voice-2----------------');
+            if (data.status === 201) {
+                console.log('SENT YASTA');
+                const newMessage = {
+                    chatId: data.data.chatId,
+                    message: data.data.message,
+                    sender: { image: user.image?.secure_url || userIcon, id: user._id },
+                };
+                appendMessage(newMessage);
+            }
+            else {
+                console.log("FAIL YASTA");
+            }
+
+            // setVoiceMessage("");
+        }
+    };
+
+    const handleVoiceMessage = (voiceMessage) => {
+        console.log("Received voice message:", voiceMessage);
+        // Perform any additional logic or actions with the voice message
+        // setVoiceMessage(voiceMessage);
+        sendVoice(voiceMessage);
+
     };
 
 
@@ -129,26 +258,39 @@ export default function Chat() {
         try {
             let message = document.getElementById("message-input");
             if (friendId && message) {
+                let friend = friends.find(friend => friend.user._id === friendId);
+                const content = message.value;
+                const newMessage = {
+                    message: {
+                        content,
+                        messageType: "text",
+                        from: user,
+                        to: friend
+                    },
+                    sender: { image: user.image?.secure_url || userIcon, id: user._id },
+                };
+                appendMessage(newMessage);
+                document.getElementById("message-input").value = '';
+
                 console.log(`Sending message to friend with ID: ${friendId}`);
-                const data = await axios.post(`http://localhost:5000/chat/`, { message: message.value, to: friendId }, { headers: header });
+                const data = await axios.post(`http://localhost:5000/chat/`, { message: content, to: friendId }, { headers: header });
                 console.log('--------------message-1-------------------');
                 console.log(data);
                 console.log('-----------------message-2----------------');
                 if (data.status === 201) {
                     console.log('SENT YASTA');
-                    const newMessage = {
-                        // chatId: data.chatId,
-                        message: message.value,
-                        sender: { image: user.image?.secure_url || userIcon, id: user._id },
-                    };
-                    appendMessage(newMessage);
+                    // const newMessage = {
+                    //     chatId: data.data.chatId,
+                    //     message: data.data.message,
+                    //     sender: { image: user.image?.secure_url || userIcon, id: user._id },
+                    // };
+                    // appendMessage(newMessage);
                 }
                 else {
                     console.log("FAIL YASTA");
                 }
                 // clientIo.emit('addMessage', { message: message.value, to: friendId, header })
                 // data?.chat ? setChat(data?.chat) : setChat(chat);
-                document.getElementById("message-input").value = '';
             }
         } catch (error) {
             console.log(error)
@@ -156,7 +298,6 @@ export default function Chat() {
     }
 
     function playMessageSound() {
-        console.log('playMessageSound');
         // Check if the audio is supported and the element exists
         const messageSound = document.getElementById('messageSound');
         if (messageSound && typeof messageSound.play === 'function') {
@@ -167,7 +308,6 @@ export default function Chat() {
 
     // Function to play the notification sound
     function playNotificationSound() {
-        console.log('playNotificationSound');
         const notificationSound = document.getElementById('notificationSound');
         if (notificationSound && typeof notificationSound.play === 'function') {
             notificationSound.volume = 0.3;
@@ -195,8 +335,6 @@ export default function Chat() {
         getIsLogin();
         // Function to handle visibility change
         function handleVisibilityChange() {
-            console.log(document.visibilityState === 'visible');
-            console.log('666666666666666666666666666666666666666666666666666');
             (document.visibilityState === 'visible') ? isChatActive = true : isChatActive = false;
         }
 
@@ -212,23 +350,19 @@ export default function Chat() {
 
 
     useEffect(() => {
-
         const receiveMessageHandler = (data) => {
             console.log('==================receiveMessageHandler=1====================');
             console.log(data);
             console.log('===================receiveMessageHandler=2===================');
             const sender = { image: data.sender.image?.secure_url || userIcon, id: data.sender._id };
             const senderId = sender.id;
-
-            const newMessage = {
-                // chatId: data.chatId,
-                message: data.message,
-                sender,
-            };
-            appendMessage(newMessage);
+            // const newMessage = {
+            //     chatId: data.chatId,
+            //     message: data.message,
+            //     sender,
+            // };
+            // appendMessage(newMessage);
             // Play the notification sound if the chat with the friend is not currently open
-            console.log({ senderId, friendId: friendIdRef.current });
-            console.log(chatHeader);
             if (senderId !== friendIdRef.current) {
                 playNotificationSound();
                 // Increment the new message count for the friend
@@ -238,11 +372,14 @@ export default function Chat() {
                 }));
             }
             else {
+                const newMessage = {
+                    chatId: data.chatId,
+                    message: data.message,
+                    sender,
+                };
+                appendMessage(newMessage);
                 playMessageSound();
             }
-            // Play the sound when a new message arrives
-            // console.log(isChatActive);
-            // isChatActive ? playMessageSound() : playNotificationSound();
         };
 
         clientIo.on('recieveMessage', receiveMessageHandler);
@@ -254,11 +391,41 @@ export default function Chat() {
     }, []); // The empty dependency array ensures that the effect runs only once
 
     const changeIsActiveStatus = async (event) => {
-        console.log(event.target.checked);
-        const data = await axios.put(`http://localhost:5000/user/`, { isActive: event.target.checked }, { headers: header });
-        console.log('AWESOME-----');
-        console.log({data});
+        const data = await axios.patch(`http://localhost:5000/user/changeIsActive`, { isActive: event.target.checked }, { headers: header });
+        console.log('AWESOME---------------');
+        console.log({ data });
+        setUser((prevUser) => ({
+            ...prevUser,
+            isActive: !prevUser.isActive,
+        }));
     };
+
+
+
+    useEffect(() => {
+        const friendOfflineHandler = (friendId) => {
+            console.log('friendOfflineHandler=========', friendId);
+            friendsRef.current = friendsRef.current.map(friend => {
+                if (friend.user._id === friendId) {
+                    return {
+                        ...friend,
+                        status: 'offline'
+                    };
+                }
+                return friend;
+            });
+        };
+
+        // Listen for the 'friendOffline' event to handle offline status updates
+        clientIo.on('friendOffline', friendOfflineHandler);
+
+        // Clean up the event listener when the component unmounts
+        return () => {
+            clientIo.off('friendOffline', friendOfflineHandler);
+        };
+    }, []);
+
+
 
     return (
         <>
@@ -274,7 +441,7 @@ export default function Chat() {
                                 </div>
                                 <div className="ml-2 font-bold text-2xl">ConnectPoint</div>
                             </div>
-                            <div className="flex flex-col items-center bg-indigo-100 border border-gray-200 mt-4 w-full py-6 px-4 rounded-lg">
+                            <div className="flex flex-col items-center bg-indigo-100 border border-gray-200 mt-4 w-full py-6 px-4 rounded-lg" style={{ 'background-color': 'white', border: '1px #1e85d7 solid' }}>
                                 {user ?
                                     <>
                                         <div className="h-20 w-20 rounded-full border overflow-hidden image-container">
@@ -299,7 +466,7 @@ export default function Chat() {
                             <div className="flex flex-col mt-8">
                                 {friends.length ?
                                     <>
-                                        <div className="flex flex-row items-center justify-between text-xs">
+                                        <div className="flex flex-row items-center justify-between text-xs" >
                                             <span className="font-bold">Active Conversations</span>
                                             <span className="flex items-center justify-center bg-gray-300 h-4 w-4 rounded-full">
                                                 {friends.filter((friend) => friend.place === 'main').length}
@@ -308,7 +475,7 @@ export default function Chat() {
                                         <div className="flex flex-col space-y-1 mt-4 -mx-2 h-48 overflow-y-auto">
                                             {friends.map((friend) => (
                                                 friend.place === 'main' && (
-                                                    <div
+                                                    <button
                                                         key={friend.user._id}
                                                         onClick={() => getChat(friend.user._id)}
                                                         className={`flex flex-row items-center hover:bg-gray-100 rounded-xl p-2 friend-row ${friend.user._id === friendId ? 'active' : ''}`}
@@ -325,7 +492,7 @@ export default function Chat() {
                                                                 )}
                                                             </div>
                                                         </div>
-                                                    </div>
+                                                    </button>
                                                 )
                                             ))}
                                         </div>
@@ -366,13 +533,13 @@ export default function Chat() {
                         <div className="flex flex-col flex-auto h-full p-6" style={{ height: "95%" }}>
                             {chatHeader ?
                                 <>
-                                    <div className="py-2 px-3 bg-teal-500 flex flex-row justify-between items-center">
+                                    <div className="py-2 px-3  flex flex-row justify-between items-center" style={{ 'background-color': '#1e85d7' }}>
                                         <div className="flex items-center">
                                             <div className='h-8 w-8 bg-indigo-200 rounded-full overflow-hidden image-container'>
                                                 <img className="w-10 h-10 rounded-full" src={chatHeader.user.image?.secure_url} />
                                             </div>
                                             <div className="ml-4">
-                                                <p style={{ display: 'block' }} className="text-grey-darkest">{chatHeader.user.userName}</p>
+                                                <p style={{ display: 'block', color: 'white' }} className="text-grey-darkest">{chatHeader.user.userName}</p>
                                                 {/* <p style={{ display: 'block' }} className="text-grey-darker text-xs mt-1">Andrés, Tom, Harrison, Arnold, Sylvester</p> */}
                                             </div>
                                         </div>
@@ -391,57 +558,93 @@ export default function Chat() {
                                             </div>
                                         </div>
                                     </div>
+
                                     <div id="chat-container" className="flex flex-col flex-auto flex-shrink-0 rounded-2xl bg-gray-100 h-full">
-                                        <div className="flex flex-col h-full overflow-x-auto mb-4" >
+                                        <div className="flex flex-col h-full overflow-x-auto mb-4">
                                             <div className="flex flex-col h-full">
-                                                {chat?.messages ?
-                                                    <>
-                                                        <div id='chatContent' className="grid grid-cols-12 gap-y-2" ref={messageRef}>
-                                                            {/* Render existing messages */}
-                                                            {messages.map((messageData, index) => (
-                                                                <Message key={index} messageData={messageData} />
-                                                            ))}
-                                                            <audio id="messageSound" preload="auto">
-                                                                <source src={popSound} type="audio/mpeg" />
-                                                            </audio>
-                                                        </div>
-                                                    </>
-                                                    :
+                                                {chat?.messages ? (
+                                                    <div id='chatContent' className="grid grid-cols-12 gap-y-2" ref={messageRef}>
+                                                        {/* Render existing messages */}
+                                                        {messages.map((messageData, index) => (
+                                                            <Message index={index} messageData={messageData} key={index} />
+                                                        ))}
+                                                        <audio id="messageSound" preload="auto">
+                                                            <source src={popSound} type="audio/mpeg" />
+                                                        </audio>
+                                                    </div>
+                                                ) : (
                                                     <div className="flex justify-center items-center h-full">
                                                         <div className="bg-gray-200 p-4 rounded-lg">
                                                             <p className="text-gray-600 text-lg">Say Hi To Start A Chat</p>
                                                         </div>
                                                     </div>
-                                                }
+                                                )}
                                             </div>
                                         </div>
-                                        <div className="flex flex-row items-center h-16 rounded-xl bg-white w-full px-4">
+                                        {/* <div className="flex flex-row items-center h-16 rounded-xl bg-white w-full px-4">
                                             <div>
-                                                <button className="flex items-center justify-center text-gray-400 hover:text-gray-600">
-                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                                                    </svg>
-                                                </button>
+                                                <FileUploadMenu onFileUpload={handleFileUpload} />
                                             </div>
                                             <div className="flex-grow ml-4">
                                                 <div className="relative w-full">
-                                                    <input id='message-input' type="text" className="flex w-full border rounded-xl focus:outline-none focus:border-indigo-300 pl-4 h-10" />
-                                                    <button className="absolute flex items-center justify-center h-full w-12 right-0 top-0 text-gray-400 hover:text-gray-600">
-                                                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                        </svg>
-                                                    </button>
+                                                    <form onSubmit={sendMessage}>
+                                                        <input
+                                                            id="message-input"
+                                                            type="text"
+                                                            className="flex w-full border rounded-xl focus:outline-none focus:border-indigo-300 pl-4 h-10"
+                                                            onKeyDown={handleKeyDown}
+                                                        />
+                                                    </form>
+                                                    <Imojis onImojiSelected={handleImojiSelected} />
                                                 </div>
                                             </div>
-                                            <div className="ml-4">
-                                                <button onClick={() => sendMessage()} className="flex items-center justify-center bg-indigo-500 hover:bg-indigo-600 rounded-xl text-white px-4 py-1 flex-shrink-0">
-                                                    <span>Send</span>
-                                                    <span className="ml-2">
-                                                        <svg className="w-4 h-4 transform rotate-45 -mt-px" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                                                        </svg>
-                                                    </span>
-                                                </button>
+                                            <div className="_2xy_p _3XKXx">
+                                                <VoiceRecorder onVoiceMessage={handleVoiceMessage} />
+                                            </div>
+                                        </div> */}
+                                        <div style={{ position: 'relative', display: 'flex', 'justify-content': 'center' }} className="flex flex-row items-center h-16 rounded-xl bg-white w-full px-4">
+
+                                            {isRecording ? (
+                                                // <div className="relative w-full">
+                                                //     {/* <canvas ref={canvasRef} id="recording-canvas" /> */}
+                                                //     {/* <canvas ref={canvasRef} width={500} height={200} /> */}
+                                                // </div>
+                                                ''
+                                            ) : (
+                                                <>
+                                                    <div>
+                                                        <FileUploadMenu onFileUpload={handleFileUpload} />
+                                                    </div>
+                                                    <div className="flex-grow ml-4">
+                                                        <div className="relative w-full">
+                                                            <form onSubmit={sendMessage}>
+                                                                <input
+                                                                    id="message-input"
+                                                                    type="text"
+                                                                    className="flex w-full border rounded-xl focus:outline-none focus:border-indigo-300 pl-4 h-10"
+                                                                    onKeyDown={handleKeyDown}
+                                                                    autoComplete='off'
+                                                                />
+                                                            </form>
+                                                            <Imojis onImojiSelected={handleImojiSelected} />
+                                                        </div>
+                                                    </div>
+                                                </>
+                                            )}
+                                            <div>
+                                                {/* <VoiceRecorder
+                                                    isRecording={isRecording}
+                                                    handleVoiceMessage={handleVoiceMessage}
+                                                    onRecordingChange={handleRecordingChange}
+                                                    setIsRecording={setIsRecording}
+                                                // canvasRef={canvasRef}
+                                                /> */}
+
+                                                <VoiceRecorder
+                                                    handleVoiceMessage={handleVoiceMessage}
+                                                    onRecordingStatusChange={handleRecordingStatusChange}
+                                                // canvasRef={canvasRef}
+                                                />
                                             </div>
                                         </div>
                                     </div>
@@ -458,11 +661,8 @@ export default function Chat() {
             <audio id="notificationSound" preload="auto">
                 <source src={notificationSound} type="audio/mpeg" />
             </audio>
-            <label className="relative inline-flex items-center mr-5 cursor-pointer">
-                <input type="checkbox" defaultValue className="sr-only peer" defaultChecked />
-                <div className="w-11 h-6 bg-gray-200 rounded-full peer dark:bg-gray-700 peer-focus:ring-4 peer-focus:ring-teal-300 dark:peer-focus:ring-teal-800 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-teal-600" />
-                <span className="ml-3 text-sm font-medium text-gray-900 dark:text-gray-300">Teal</span>
-            </label>
+
+
 
         </>
     )
@@ -570,7 +770,57 @@ export default function Chat() {
 
 
 
-
+// <div id="chat-container" className="flex flex-col flex-auto flex-shrink-0 rounded-2xl bg-gray-100 h-full">
+//                                         <div className="flex flex-col h-full overflow-x-auto mb-4" >
+//                                             <div className="flex flex-col h-full">
+//                                                 {chat?.messages ?
+//                                                     <>
+//                                                         <div id='chatContent' className="grid grid-cols-12 gap-y-2" ref={messageRef}>
+//                                                             {/* Render existing messages */}
+//                                                             {messages.map((messageData, index) => (
+//                                                                 <>
+//                                                                     <Message index={index} messageData={messageData} />
+//                                                                 </>
+//                                                             ))}
+//                                                             <audio id="messageSound" preload="auto">
+//                                                                 <source src={popSound} type="audio/mpeg" />
+//                                                             </audio>
+//                                                         </div>
+//                                                     </>
+//                                                     :
+//                                                     <div className="flex justify-center items-center h-full">
+//                                                         <div className="bg-gray-200 p-4 rounded-lg">
+//                                                             <p className="text-gray-600 text-lg">Say Hi To Start A Chat</p>
+//                                                         </div>
+//                                                     </div>
+//                                                 }
+//                                             </div>
+//                                         </div>
+//                                         <div className="flex flex-row items-center h-16 rounded-xl bg-white w-full px-4">
+//                                             <div>
+//                                                 <FileUploadMenu onFileUpload={handleFileUpload} />
+//                                             </div>
+//                                             <div className="flex-grow ml-4">
+//                                                 <div className="relative w-full">
+//                                                     <input id='message-input' type="text" className="flex w-full border rounded-xl focus:outline-none focus:border-indigo-300 pl-4 h-10" />
+//                                                     <Imojis onImojiSelected={handleImojiSelected} />
+//                                                 </div>
+//                                             </div>
+//                                             <div className="ml-4">
+//                                                 <button onClick={() => sendMessage()} className="flex items-center justify-center bg-indigo-500 hover:bg-indigo-600 rounded-xl text-white px-4 py-1 flex-shrink-0">
+//                                                     <span>Send</span>
+//                                                     <span className="ml-2">
+//                                                         <svg className="w-4 h-4 transform rotate-45 -mt-px" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+//                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+//                                                         </svg>
+//                                                     </span>
+//                                                 </button>
+//                                             </div>
+//                                             <div className="_2xy_p _3XKXx">
+//                                                 <VoiceRecorder onVoiceMessage={handleVoiceMessage} />
+//                                             </div>
+//                                         </div>
+//                                     </div>
 
 
 

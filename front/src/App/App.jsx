@@ -1,15 +1,16 @@
-// import MyComponent from '../Chat/Chat.jsx';
-import Chat from '../Chat/Chat.jsx';
-import Alter from '../Chat/Alter.jsx';
-
 import './App.css';
-// import '../Chat/chat.tailwind.css';
+import Chat from '../Chat/Chat.jsx';
+import Signup from '../Signup/Signup.jsx';
+
+
 
 function App() {
+  const token = localStorage.getItem('token');
+
+  console.log(token);
   return (
     <div className="App">
-      <Chat/>
-      {/* <Alter/> */}
+      {!token ? <Signup /> : <Chat />}
     </div>
   );
 }

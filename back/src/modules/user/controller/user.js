@@ -4,6 +4,8 @@ import { decryptPhone, doHashing, compare, encrypt, decrypt } from "../../../uti
 import { generateToken } from "../../../utilis/GenerateAndVerifyToken.js";
 import cloudinary from "../../../utilis/cloudinary.js";
 import { user } from "../../../../DB/userData.js";
+import { logoutUser } from "../../../../index.js";
+import { getIo } from "../../../utilis/server.js";
 // import { createMail, sendMail } from '../../../utilis/email.js'
 // import { deleteDoc } from "../../../utilis/handlers/delete-softDelete.js";
 
@@ -133,6 +135,11 @@ export const logOutUser = asyncHandler(
     async (req, res, next) => {
         //send To logOut Fun.
         if (await logOut(req.user)) {
+            // Handle user logout or disconnection
+            getIo().on('disconnect', () => {
+                logoutUser(req.user.socketId);
+            });
+
             return res.status(202).json({
                 message: "Done!",
                 status: { cause: 202 }
@@ -212,3 +219,20 @@ export const getFriends = asyncHandler(async (req, res, next) => {
 export const getUser = () => {
     return user
 }
+
+
+
+export const changeIsActive = asyncHandler(async (req, res, next) => {
+
+    const user = await userModel.findById(req.user._id);
+    // Determine the new isActive based on the current isActive
+    user.isActive = !user.isActive;
+    await user.save();
+    // Handle user logout or disconnection
+    // getIo().on('disconnect', () => {
+        
+    // });
+    logoutUser(req.user.socketId);
+    res.status(202).json({ message: 'Done!' });
+
+})

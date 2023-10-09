@@ -39,6 +39,11 @@ router.patch("/logOut",
     userController.logOutUser
 );
 
+router.patch('/changeIsActive',
+    auth(Object.values(roles)),
+    userController.changeIsActive
+);
+
 // ////////////////////////////
 //  Admin And Super Can Do  //
 // //////////////////////////

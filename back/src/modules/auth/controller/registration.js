@@ -5,10 +5,13 @@ import { generateToken, verifyToken } from "../../../utilis/GenerateAndVerifyTok
 import { nanoid } from "nanoid";
 import cloudinary from "../../../utilis/cloudinary.js";
 import { createMail, sendMail } from "../../../utilis/email.js";
+import { getIo } from "../../../utilis/server.js";
+import { loginUser } from "../../../../index.js";
+
 // import { OAuth2Client } from 'google-auth-library';
 // const client = new OAuth2Client();
 
-export const signUp = asyncHandler( async (req, res, next) => {
+export const signUp = asyncHandler(async (req, res, next) => {
     const protocol = req.protocol;
     const host = req.headers.host;
     let { userName, email } = req.body;
@@ -173,7 +176,6 @@ export const resetPassword = asyncHandler(async (req, res, next) => {
     return next(new Error("In-Valid!", { cause: 404 }));
 });
 
-
 export const logIn = asyncHandler(async (req, res, next) => {
     const { email, password } = req.body;
     const user = await userModel.findOne({ email });
@@ -193,7 +195,17 @@ export const logIn = asyncHandler(async (req, res, next) => {
     const createdToken = generateToken({ userName: user.userName, id: user._id }, process.env.LOGIN_TOKEN_KEY, 60 * 60 * 24);
     if (createdToken) {
         user.status = 'online';
+        user.isActive = true;
         await user.save();
+
+        // Handle user login
+        getIo().on('login', (userId) => {
+            // Handle user login
+            loginUser(user._id, user.socketId);
+        });
+
+
+
         return res.status(202).json({
             message: "logIn Successfully!",
             token: createdToken,
