@@ -32,7 +32,7 @@ const initApp = (app, express) => {
 
     //Setup API Routing 
     app.get("/", (req, res, next) => {
-        return res.json({ message: 'Welcome to E-Commerce' })
+        return res.json({ message: 'Welcome to ConnectPoint' })
     })
     app.use(`/auth`, authRouter)
     app.use(`/user`, userRouter)

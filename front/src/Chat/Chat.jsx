@@ -10,13 +10,6 @@ import FileUploadMenu from './uploadFile.js'
 import Imojis from './imojis.js'
 import VoiceRecorder from './recordVoice.js'
 
-
-
-
-
-
-
-
 export default function Chat() {
     const [isLogin, setIsLogin] = useState(false);
     const [user, setUser] = useState(null);
@@ -28,17 +21,17 @@ export default function Chat() {
     const friendIdRef = useRef(null);
     const [messages, setMessages] = useState([]);
     const [newMessageCount, setNewMessageCount] = useState({});
-
-
     const token = localStorage.getItem('token');
-
-
-
-
     const baseUrl = 'http://localhost:5000/';
     const clientIo = io(baseUrl);
 
-    const { id } = jwt_decode(token);
+    let id, header;
+    if (token) {
+        id = { id } = jwt_decode(token);
+        header = {
+            authorization: `kokoz ` + token?.replace(/"/g, '')
+        }
+    }
 
     clientIo.emit('updateSocketId', id);
     clientIo.on('updateSocketId', data => {
@@ -46,13 +39,7 @@ export default function Chat() {
         console.log(data);
         console.log('ppppppppppppppppppppppppppppppppppp');
     })
-
-    const header = {
-        authorization: `kokoz ` + token?.replace(/"/g, '')
-    }
-
-
-
+    
     const handleFileUpload = async (file) => {
         // Do something with the uploaded file
         console.log('chat.jsx-----------------');
@@ -88,6 +75,7 @@ export default function Chat() {
     // const [loginId, setLoginId] = useState(null)
     // let userId;
     const getIsLogin = () => {
+        console.log('ooooooooooooooooooooooooooooooooooo');
         if (token) {
             setIsLogin(true);
             getUser();

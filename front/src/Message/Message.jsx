@@ -3,17 +3,12 @@ import React from 'react';
 import { Document, Page } from 'react-pdf';
 import jwt_decode from "jwt-decode";
 
+let id;
 const token = localStorage.getItem('token')
-const { id } = jwt_decode(token);
+if (token) {
+    id = { id } = jwt_decode(token);
+}
 
-// getIo().to(isToExist.socketId).emit('recieveMessage', { chatId: newChat._id, message: newMessage, sender: req.user });
-// message = {
-//     from: req.user._id,
-//     to,
-//     content: message,
-//     messageType,
-//     file: req.body.file
-// };
 
 const Message = ({ index, messageData }) => {
     console.log(index);
